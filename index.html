@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Character Sync</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<div class="background-glow glow1"></div>
+<div class="background-glow glow2"></div>
+
+<main class="container">
+
+    <header>
+        <p class="mini-title">IMAGE SIMILARITY ANALYZER</p>
+        <h1>CHARACTER <span>SYNC</span></h1>
+        <p class="description">
+            캐릭터와 당신은 얼마나 닮았을까요?
+            두 이미지를 업로드하고 싱크로율을 확인해보세요.
+        </p>
+    </header>
+
+
+    <!-- 이미지 업로드 -->
+    <section class="compare-area">
+
+        <!-- 캐릭터 -->
+        <div class="upload-card">
+
+            <div class="card-title">
+                <span>01</span>
+                CHARACTER
+            </div>
+
+            <label class="image-box" for="characterInput">
+
+                <img id="characterPreview" alt="캐릭터 미리보기">
+
+                <div class="upload-message" id="characterMessage">
+                    <div class="upload-icon">+</div>
+                    <strong>캐릭터 이미지</strong>
+                    <p>클릭하여 이미지 선택</p>
+                </div>
+
+            </label>
+
+            <input
+                type="file"
+                id="characterInput"
+                accept="image/*"
+                hidden
+            >
+
+        </div>
+
+
+        <div class="vs">VS</div>
+
+
+        <!-- 사용자 -->
+        <div class="upload-card">
+
+            <div class="card-title">
+                <span>02</span>
+                YOU
+            </div>
+
+            <label class="image-box" for="userInput">
+
+                <img id="userPreview" alt="사용자 미리보기">
+
+                <div class="upload-message" id="userMessage">
+                    <div class="upload-icon">+</div>
+                    <strong>내 이미지</strong>
+                    <p>클릭하여 이미지 선택</p>
+                </div>
+
+            </label>
+
+            <input
+                type="file"
+                id="userInput"
+                accept="image/*"
+                hidden
+            >
+
+        </div>
+
+    </section>
+
+
+    <!-- 분석 버튼 -->
+    <button id="analyzeButton" class="analyze-button">
+        ANALYZE SYNC
+    </button>
+
+
+    <!-- 분석 중 -->
+    <section id="loading" class="loading hidden">
+
+        <div class="scanner"></div>
+
+        <h2>ANALYZING...</h2>
+
+        <p id="loadingText">
+            이미지 데이터를 불러오는 중
+        </p>
+
+        <div class="loading-bar">
+            <div id="loadingProgress"></div>
+        </div>
+
+    </section>
+
+
+    <!-- 결과 -->
+    <section id="result" class="result hidden">
+
+        <p class="result-small">
+            CHARACTER SYNC RESULT
+        </p>
+
+        <div class="score-circle">
+
+            <span id="score">0</span>
+            <small>%</small>
+
+        </div>
+
+        <h2 id="resultTitle">
+            분석 완료
+        </h2>
+
+        <p id="resultDescription">
+            두 이미지의 시각적 특징을 비교했습니다.
+        </p>
+
+
+        <!-- 세부 분석 -->
+        <div class="details">
+
+            <div class="detail">
+                <div class="detail-name">
+                    <span>색상 유사도</span>
+                    <span id="colorScore">0%</span>
+                </div>
+
+                <div class="detail-bar">
+                    <div id="colorBar"></div>
+                </div>
+            </div>
+
+
+            <div class="detail">
+                <div class="detail-name">
+                    <span>밝기 유사도</span>
+                    <span id="brightnessScore">0%</span>
+                </div>
+
+                <div class="detail-bar">
+                    <div id="brightnessBar"></div>
+                </div>
+            </div>
+
+
+            <div class="detail">
+                <div class="detail-name">
+                    <span>형태 유사도</span>
+                    <span id="shapeScore">0%</span>
+                </div>
+
+                <div class="detail-bar">
+                    <div id="shapeBar"></div>
+                </div>
+            </div>
+
+        </div>
+
+
+        <button id="resetButton" class="reset-button">
+            다시 비교하기
+        </button>
+
+    </section>
+
+
+    <canvas id="canvas1" width="64" height="64"></canvas>
+    <canvas id="canvas2" width="64" height="64"></canvas>
+
+</main>
+
+<script src="script.js"></script>
+
+</body>
+</html>
