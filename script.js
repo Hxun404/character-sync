@@ -1,853 +1,1218 @@
-const characterInput =
-    document.getElementById("characterInput");
-
-const userInput =
-    document.getElementById("userInput");
-
-const characterPreview =
-    document.getElementById("characterPreview");
-
-const userPreview =
-    document.getElementById("userPreview");
-
-const analyzeButton =
-    document.getElementById("analyzeButton");
-
-const resetButton =
-    document.getElementById("resetButton");
-
-
-let characterLoaded = false;
-let userLoaded = false;
-
+"use strict";
 
 /* =========================
-   이미지 미리보기
+   얼굴 기준점
+   왼쪽 / 오른쪽은 화면 기준
 ========================= */
 
-function previewImage(
-    input,
-    preview,
-    message,
-    type
-) {
+const POINTS = [
+  ["top", "이마 위 중앙 (헤어라인보다 아래 얼굴 경계)", 10],
+  ["chin", "턱 끝", 152],
 
-    const file = input.files[0];
+  ["cheekL", "왼쪽 광대 바깥", 234],
+  ["cheekR", "오른쪽 광대 바깥", 454],
 
-    if (!file) return;
+  ["jawL", "왼쪽 턱 모서리", 172],
+  ["jawR", "오른쪽 턱 모서리", 397],
 
+  ["eyeLO", "왼쪽 눈 바깥꼬리", 33],
+  ["eyeLI", "왼쪽 눈 안쪽꼬리", 133],
+  ["eyeLU", "왼쪽 윗눈꺼풀 중앙", 159],
+  ["eyeLD", "왼쪽 아랫눈꺼풀 중앙", 145],
 
-    const reader =
-        new FileReader();
+  ["eyeRI", "오른쪽 눈 안쪽꼬리", 362],
+  ["eyeRO", "오른쪽 눈 바깥꼬리", 263],
+  ["eyeRU", "오른쪽 윗눈꺼풀 중앙", 386],
+  ["eyeRD", "오른쪽 아랫눈꺼풀 중앙", 374],
 
+  ["root", "콧대 시작 (눈 사이)", 168],
+  ["nose", "코끝", 1],
+  ["noseL", "왼쪽 콧방울 바깥", 98],
+  ["noseR", "오른쪽 콧방울 바깥", 327],
 
-    reader.onload =
-        function(event) {
+  ["mouthL", "왼쪽 입꼬리", 61],
+  ["mouthR", "오른쪽 입꼬리", 291],
+  ["lipU", "윗입술 바깥 중앙", 0],
+  ["lipD", "아랫입술 바깥 중앙", 17]
+];
 
-            preview.src =
-                event.target.result;
+/* =========================
+   결과 그룹
+========================= */
 
-            preview.style.display =
-                "block";
+const GROUPS = [
+  "FACE STRUCTURE",
+  "EYES",
+  "NOSE",
+  "MOUTH",
+  "FACE SHAPE",
+  "BALANCE"
+];
 
-            document
-                .getElementById(message)
-                .style.display =
-                "none";
+/*
+  항목 구조:
+  [그룹 번호, 항목 이름, 허용 차이, 계산 설명]
 
+  허용 차이는 해당 차이에서 50점이 되도록 정한
+  앱 내부 기준이며, 통계적으로 검증된 기준은 아닙니다.
+*/
 
-            if (type === "character") {
+const METRICS = [
+  [
+    0,
+    "얼굴 가로·세로 비율",
+    0.25,
+    "얼굴 폭 / 얼굴 높이"
+  ],
+  [
+    0,
+    "눈 높이 비율",
+    0.12,
+    "이마 위에서 눈 중심까지 / 얼굴 높이"
+  ],
+  [
+    0,
+    "중안부 비율",
+    0.12,
+    "눈 중심에서 코끝까지 / 얼굴 높이"
+  ],
+  [
+    0,
+    "하안부 비율",
+    0.12,
+    "코끝에서 턱까지 / 얼굴 높이"
+  ],
 
-                characterLoaded = true;
+  [
+    1,
+    "눈 사이 간격",
+    0.10,
+    "눈 중심 사이 거리 / 얼굴 폭"
+  ],
+  [
+    1,
+    "눈 너비",
+    0.07,
+    "양쪽 눈 너비 평균 / 얼굴 폭"
+  ],
+  [
+    1,
+    "눈 가로·세로 비율",
+    0.20,
+    "양쪽 눈의 높이 / 너비 평균"
+  ],
+  [
+    1,
+    "눈꼬리 기울기",
+    0.18,
+    "눈 안쪽→바깥쪽 기울기의 양쪽 평균 (라디안)"
+  ],
+  [
+    1,
+    "안쪽 눈 간격",
+    0.09,
+    "양쪽 눈 안쪽꼬리 거리 / 얼굴 폭"
+  ],
 
-            } else {
+  [
+    2,
+    "코 길이",
+    0.10,
+    "콧대 시작에서 코끝까지 / 얼굴 높이"
+  ],
+  [
+    2,
+    "코 너비",
+    0.08,
+    "콧방울 사이 거리 / 얼굴 폭"
+  ],
+  [
+    2,
+    "코 중심 위치",
+    0.07,
+    "코끝의 얼굴 중심선 이탈 / 얼굴 폭"
+  ],
 
-                userLoaded = true;
+  [
+    3,
+    "입 너비",
+    0.10,
+    "입꼬리 사이 거리 / 얼굴 폭"
+  ],
+  [
+    3,
+    "입술 높이",
+    0.06,
+    "입술 바깥 위아래 거리 / 얼굴 높이"
+  ],
+  [
+    3,
+    "코·입 간격",
+    0.07,
+    "코끝에서 입 중심까지 / 얼굴 높이"
+  ],
+  [
+    3,
+    "입 중심 위치",
+    0.07,
+    "입 중심의 얼굴 중심선 이탈 / 얼굴 폭"
+  ],
 
-            }
+  [
+    4,
+    "턱 너비",
+    0.15,
+    "턱 모서리 사이 거리 / 광대 폭"
+  ],
+  [
+    4,
+    "턱 길이",
+    0.10,
+    "입 중심에서 턱 끝까지 / 얼굴 높이"
+  ],
+  [
+    4,
+    "턱 아래 비율",
+    0.10,
+    "턱 모서리 평균 높이에서 턱 끝까지 / 얼굴 높이"
+  ],
+  [
+    4,
+    "하관 좁아짐",
+    0.12,
+    "(광대 폭 − 턱 너비) / 얼굴 높이"
+  ],
 
-        };
+  [
+    5,
+    "좌우 폭 균형",
+    0.12,
+    "중심선 기준 좌우 광대 폭의 차이 / 얼굴 폭"
+  ],
+  [
+    5,
+    "눈 크기 균형",
+    0.07,
+    "양쪽 눈 너비 차이 / 얼굴 폭"
+  ]
+];
 
+/* =========================
+   공통 상태 및 함수
+========================= */
 
-    reader.readAsDataURL(file);
+const $ = (selector) => document.querySelector(selector);
+
+const sides = [];
+
+let busy = false;
+let modelPromise = null;
+
+const dist = (a, b) => {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+};
+
+const mid = (a, b) => {
+  return {
+    x: (a.x + b.x) / 2,
+    y: (a.y + b.y) / 2
+  };
+};
+
+const mean = (values) => {
+  return values.reduce((sum, value) => sum + value, 0)
+    / values.length;
+};
+
+function update() {
+  $("#analyzeButton").disabled =
+    busy || !sides.every((side) => side.ready);
 }
 
+function invalidate() {
+  $("#result").hidden = true;
+  update();
+}
 
-/* 이미지 선택 이벤트 */
+function setBusy(value) {
+  busy = value;
 
-characterInput.addEventListener(
-    "change",
-    function() {
+  document.querySelectorAll(
+    ".upload-card button, .upload-card input, .upload-card select"
+  ).forEach((element) => {
+    const side = sides.find((item) => {
+      return item.card.contains(element);
+    });
 
-        previewImage(
-            characterInput,
-            characterPreview,
-            "characterMessage",
-            "character"
-        );
+    element.disabled =
+      value ||
+      (!element.matches("input") && !side.image);
+  });
 
-    }
-);
-
-
-userInput.addEventListener(
-    "change",
-    function() {
-
-        previewImage(
-            userInput,
-            userPreview,
-            "userMessage",
-            "user"
-        );
-
-    }
-);
-
+  update();
+}
 
 /* =========================
-   이미지 특징 추출
+   사진과 기준점 그리기
 ========================= */
 
-function getImageFeatures(
-    image,
-    canvas
-) {
+function draw(side) {
+  const canvas = side.canvas;
+  const context = canvas.getContext("2d");
 
-    const ctx =
-        canvas.getContext(
-            "2d",
-            {
-                willReadFrequently: true
-            }
-        );
+  context.clearRect(
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
 
+  if (!side.image) return;
 
-    const size = 64;
+  context.drawImage(
+    side.image,
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
 
-    canvas.width = size;
-    canvas.height = size;
+  const scale = canvas.width / 420;
 
+  POINTS.forEach(([key], index) => {
+    const point = side.points[key];
 
-    /* 이미지를 정사각형으로 자르기 */
+    if (!point) return;
 
-    const imageRatio =
-        image.naturalWidth /
-        image.naturalHeight;
+    context.beginPath();
 
-
-    let sourceX = 0;
-    let sourceY = 0;
-
-    let sourceWidth =
-        image.naturalWidth;
-
-    let sourceHeight =
-        image.naturalHeight;
-
-
-    if (imageRatio > 1) {
-
-        sourceWidth =
-            image.naturalHeight;
-
-        sourceX =
-            (
-                image.naturalWidth -
-                sourceWidth
-            ) / 2;
-
-    } else {
-
-        sourceHeight =
-            image.naturalWidth;
-
-        sourceY =
-            (
-                image.naturalHeight -
-                sourceHeight
-            ) / 2;
-
-    }
-
-
-    ctx.clearRect(
-        0,
-        0,
-        size,
-        size
+    context.arc(
+      point.x,
+      point.y,
+      4 * scale,
+      0,
+      Math.PI * 2
     );
 
+    context.fillStyle =
+      index === side.select.selectedIndex
+        ? "#ffda79"
+        : "#67e8f9";
 
-    ctx.drawImage(
-        image,
+    context.fill();
 
-        sourceX,
-        sourceY,
-        sourceWidth,
-        sourceHeight,
+    context.strokeStyle = "#06111c";
+    context.lineWidth = 2 * scale;
+    context.stroke();
 
-        0,
-        0,
-        size,
-        size
+    context.font = `bold ${11 * scale}px sans-serif`;
+
+    context.strokeText(
+      String(index + 1),
+      point.x + 6 * scale,
+      point.y - 5 * scale
     );
 
+    context.fillText(
+      String(index + 1),
+      point.x + 6 * scale,
+      point.y - 5 * scale
+    );
+  });
 
-    const imageData =
-        ctx.getImageData(
-            0,
-            0,
-            size,
-            size
-        );
+  if (side.editing) {
+    const point = side.cursor;
 
+    context.strokeStyle = "#ffda79";
+    context.lineWidth = 2 * scale;
 
-    const data =
-        imageData.data;
+    context.beginPath();
 
+    context.moveTo(
+      point.x - 9 * scale,
+      point.y
+    );
 
-    let red = 0;
-    let green = 0;
-    let blue = 0;
+    context.lineTo(
+      point.x + 9 * scale,
+      point.y
+    );
 
-    let brightness = 0;
+    context.moveTo(
+      point.x,
+      point.y - 9 * scale
+    );
 
-    const brightnessMap = [];
+    context.lineTo(
+      point.x,
+      point.y + 9 * scale
+    );
 
+    context.stroke();
+  }
+}
 
-    for (
-        let i = 0;
-        i < data.length;
-        i += 4
+/* =========================
+   기준점 편집
+========================= */
+
+function edit(side) {
+  side.editing = true;
+  side.ready = false;
+  side.editor.hidden = false;
+
+  invalidate();
+
+  side.note.textContent =
+    "기준점 위치를 확인하세요. 잘못된 점은 목록에서 선택한 뒤 사진을 눌러 수정하세요.";
+
+  draw(side);
+}
+
+function place(side, x, y) {
+  if (!side.editing || busy) return;
+
+  const key = POINTS[side.select.selectedIndex][0];
+
+  side.points[key] = { x, y };
+
+  side.mode = "직접 지정/수정";
+  side.ready = false;
+
+  invalidate();
+
+  if (side.select.selectedIndex < POINTS.length - 1) {
+    side.select.selectedIndex++;
+  }
+
+  const count = Object.keys(side.points).length;
+  const nextName = POINTS[side.select.selectedIndex][1];
+
+  side.note.textContent =
+    `${count}/${POINTS.length}개 지정 · 다음: ${nextName}`;
+
+  draw(side);
+}
+
+/* =========================
+   얼굴 비율 추출
+========================= */
+
+function features(raw) {
+  for (const [key] of POINTS) {
+    const point = raw[key];
+
+    if (
+      !point ||
+      !Number.isFinite(point.x) ||
+      !Number.isFinite(point.y)
     ) {
+      throw new Error(
+        "22개 기준점을 모두 지정해 주세요."
+      );
+    }
+  }
 
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
+  /*
+    이마 위 → 턱 끝 방향을 세로축으로 사용합니다.
+    사진 크기 및 평면상 기울기 영향을 줄입니다.
+  */
 
+  const axis = {
+    x: raw.chin.x - raw.top.x,
+    y: raw.chin.y - raw.top.y
+  };
 
-        red += r;
-        green += g;
-        blue += b;
+  const H = Math.hypot(axis.x, axis.y);
 
+  if (H < 20) {
+    throw new Error(
+      "얼굴 높이가 너무 작습니다. 더 큰 얼굴 사진이나 기준점을 확인해 주세요."
+    );
+  }
 
-        const pixelBrightness =
-            (
-                r +
-                g +
-                b
-            ) / 3;
+  const ey = {
+    x: axis.x / H,
+    y: axis.y / H
+  };
 
+  const ex = {
+    x: ey.y,
+    y: -ey.x
+  };
 
-        brightness +=
-            pixelBrightness;
+  const p = {};
 
+  for (const [key] of POINTS) {
+    const x = raw[key].x - raw.top.x;
+    const y = raw[key].y - raw.top.y;
 
-        brightnessMap.push(
-            pixelBrightness
+    p[key] = {
+      x: x * ex.x + y * ex.y,
+      y: x * ey.x + y * ey.y
+    };
+  }
+
+  const W = p.cheekR.x - p.cheekL.x;
+
+  const eL = mid(p.eyeLO, p.eyeLI);
+  const eR = mid(p.eyeRI, p.eyeRO);
+
+  const eyes = mid(eL, eR);
+  const mouth = mid(p.mouthL, p.mouthR);
+
+  const lw = dist(p.eyeLO, p.eyeLI);
+  const rw = dist(p.eyeRI, p.eyeRO);
+
+  const jw = dist(p.jawL, p.jawR);
+
+  const validOrder =
+    0 < eyes.y &&
+    eyes.y < p.nose.y &&
+    p.nose.y < mouth.y &&
+    mouth.y < H;
+
+  if (
+    W < 20 ||
+    lw < 3 ||
+    rw < 3 ||
+    p.eyeLI.x <= p.eyeLO.x ||
+    p.eyeRO.x <= p.eyeRI.x ||
+    p.noseR.x <= p.noseL.x ||
+    p.mouthR.x <= p.mouthL.x ||
+    p.jawR.x <= p.jawL.x ||
+    !validOrder
+  ) {
+    throw new Error(
+      "기준점 순서가 맞지 않습니다. 화면 기준 좌우와 이마→눈→코→입→턱 위치를 확인하세요."
+    );
+  }
+
+  const values = [
+    // FACE STRUCTURE
+    W / H,
+    eyes.y / H,
+    (p.nose.y - eyes.y) / H,
+    (H - p.nose.y) / H,
+
+    // EYES
+    dist(eL, eR) / W,
+
+    (lw + rw) / 2 / W,
+
+    (
+      dist(p.eyeLU, p.eyeLD) / lw +
+      dist(p.eyeRU, p.eyeRD) / rw
+    ) / 2,
+
+    (
+      Math.atan2(
+        p.eyeLI.y - p.eyeLO.y,
+        p.eyeLI.x - p.eyeLO.x
+      ) +
+      Math.atan2(
+        p.eyeRI.y - p.eyeRO.y,
+        p.eyeRO.x - p.eyeRI.x
+      )
+    ) / 2,
+
+    dist(p.eyeLI, p.eyeRI) / W,
+
+    // NOSE
+    dist(p.root, p.nose) / H,
+    dist(p.noseL, p.noseR) / W,
+    Math.abs(p.nose.x) / W,
+
+    // MOUTH
+    dist(p.mouthL, p.mouthR) / W,
+    dist(p.lipU, p.lipD) / H,
+    dist(p.nose, mouth) / H,
+    Math.abs(mouth.x) / W,
+
+    // FACE SHAPE
+    jw / W,
+    (H - mouth.y) / H,
+    (H - mid(p.jawL, p.jawR).y) / H,
+    (W - jw) / H,
+
+    // BALANCE
+    Math.abs(
+      Math.abs(p.cheekL.x) -
+      Math.abs(p.cheekR.x)
+    ) / W,
+
+    Math.abs(lw - rw) / W
+  ];
+
+  if (values.some((value) => !Number.isFinite(value))) {
+    throw new Error(
+      "기준점으로 측정할 수 없습니다. 위치를 다시 확인하세요."
+    );
+  }
+
+  return values;
+}
+
+/* =========================
+   얼굴 감지 모델 로드
+========================= */
+
+async function getModel() {
+  if (!modelPromise) {
+    modelPromise = (async () => {
+      const root =
+        "https://cdn.jsdelivr.net/npm/" +
+        "@mediapipe/tasks-vision@0.10.22-rc.20250304";
+
+      const {
+        FilesetResolver,
+        FaceLandmarker
+      } = await import(`${root}/vision_bundle.mjs`);
+
+      const files = await FilesetResolver.forVisionTasks(
+        `${root}/wasm`
+      );
+
+      return FaceLandmarker.createFromOptions(files, {
+        baseOptions: {
+          modelAssetPath:
+            "https://storage.googleapis.com/" +
+            "mediapipe-models/face_landmarker/" +
+            "face_landmarker/float16/1/" +
+            "face_landmarker.task",
+
+          delegate: "CPU"
+        },
+
+        runningMode: "IMAGE",
+        numFaces: 2
+      });
+    })().catch((error) => {
+      modelPromise = null;
+      throw error;
+    });
+  }
+
+  return modelPromise;
+}
+
+/* =========================
+   자동 얼굴 감지
+========================= */
+
+async function detect(side) {
+  if (busy || !side.image) return;
+
+  setBusy(true);
+
+  side.ready = false;
+  invalidate();
+
+  side.note.textContent =
+    "얼굴 모델을 준비하는 중… 처음에는 시간이 걸릴 수 있습니다.";
+
+  try {
+    let timer;
+
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        reject(
+          new Error("모델 다운로드 시간이 초과되었습니다.")
         );
+      }, 30000);
+    });
 
+    const model = await Promise.race([
+      getModel(),
+      timeout
+    ]).finally(() => {
+      clearTimeout(timer);
+    });
+
+    /*
+      기준점 표시가 들어가지 않은 원본 사진으로 감지합니다.
+    */
+    const source = document.createElement("canvas");
+
+    source.width = side.canvas.width;
+    source.height = side.canvas.height;
+
+    source.getContext("2d").drawImage(
+      side.image,
+      0,
+      0,
+      source.width,
+      source.height
+    );
+
+    await new Promise((resolve) => {
+      requestAnimationFrame(() => {
+        setTimeout(resolve, 0);
+      });
+    });
+
+    const result = model.detect(source);
+
+    if (result.faceLandmarks.length !== 1) {
+      throw new Error(
+        result.faceLandmarks.length
+          ? "얼굴이 여러 개입니다. 한 명만 나온 사진을 선택하거나 직접 지정하세요."
+          : "얼굴을 찾지 못했습니다. 캐릭터는 직접 지정 기능을 이용해 주세요."
+      );
     }
 
+    const landmarks = result.faceLandmarks[0];
 
-    const pixelCount =
-        data.length / 4;
+    side.points = Object.fromEntries(
+      POINTS.map(([key, , id]) => {
+        return [
+          key,
+          {
+            x: landmarks[id].x * source.width,
+            y: landmarks[id].y * source.height
+          }
+        ];
+      })
+    );
 
+    side.mode = "자동 감지";
 
-    red /= pixelCount;
-    green /= pixelCount;
-    blue /= pixelCount;
+    edit(side);
 
-    brightness /=
-        pixelCount;
+    side.note.textContent =
+      "자동 감지 완료. 점이 실제 부위에 맞는지 확인한 뒤 아래 확인 완료를 눌러 주세요.";
+  } catch (error) {
+    edit(side);
 
+    side.note.textContent =
+      `${error.message} 직접 지정으로 계속할 수 있습니다.`;
+  } finally {
+    setBusy(false);
+    draw(side);
+  }
+}
 
-    /* 형태/윤곽 특징 계산 */
+/* =========================
+   사진 카드 초기화 및 이벤트
+========================= */
 
-    let edgeAmount = 0;
+for (const name of ["character", "user"]) {
+  const card = $(`[data-side="${name}"]`);
 
+  const side = {
+    card,
+    canvas: card.querySelector("canvas"),
+    select: card.querySelector("select"),
+    editor: card.querySelector(".editor"),
+    note: card.querySelector(".card-status"),
 
-    for (
-        let y = 0;
-        y < size - 1;
-        y++
-    ) {
+    points: {},
+    image: null,
 
-        for (
-            let x = 0;
-            x < size - 1;
-            x++
+    ready: false,
+    editing: false,
+
+    mode: "직접 지정",
+
+    cursor: {
+      x: 0,
+      y: 0
+    },
+
+    version: 0
+  };
+
+  sides.push(side);
+
+  POINTS.forEach(([, label], index) => {
+    side.select.add(
+      new Option(
+        `${index + 1}. ${label}`,
+        String(index)
+      )
+    );
+  });
+
+  /* 사진 선택 */
+  card.querySelector("input").addEventListener(
+    "change",
+    async (event) => {
+      const file = event.target.files[0];
+
+      if (!file) return;
+
+      const version = ++side.version;
+
+      side.ready = false;
+      side.image = null;
+      side.points = {};
+      side.editing = false;
+
+      side.editor.hidden = true;
+      side.canvas.hidden = true;
+
+      card.querySelector(".placeholder").hidden = false;
+
+      invalidate();
+
+      let url;
+
+      try {
+        const allowedTypes = [
+          "image/jpeg",
+          "image/png",
+          "image/webp"
+        ];
+
+        if (
+          !allowedTypes.includes(file.type) ||
+          file.size > 15 * 1024 * 1024
         ) {
-
-            const index =
-                y * size + x;
-
-
-            const current =
-                brightnessMap[index];
-
-            const right =
-                brightnessMap[
-                    index + 1
-                ];
-
-            const bottom =
-                brightnessMap[
-                    index + size
-                ];
-
-
-            edgeAmount +=
-                Math.abs(
-                    current - right
-                );
-
-            edgeAmount +=
-                Math.abs(
-                    current - bottom
-                );
-
+          throw new Error(
+            "15MB 이하 JPG, PNG, WEBP 파일을 선택해 주세요."
+          );
         }
 
-    }
+        url = URL.createObjectURL(file);
 
+        const image = new Image();
+        image.src = url;
 
-    edgeAmount /=
-        (
-            size *
-            size *
-            2
+        await image.decode();
+
+        if (version !== side.version) return;
+
+        if (
+          image.naturalWidth < 80 ||
+          image.naturalHeight < 80 ||
+          image.naturalWidth * image.naturalHeight > 40000000
+        ) {
+          throw new Error(
+            "80px 이상, 4천만 화소 이하 사진을 선택해 주세요."
+          );
+        }
+
+        const scale = Math.min(
+          1,
+          1000 / Math.max(
+            image.naturalWidth,
+            image.naturalHeight
+          )
         );
 
+        side.canvas.width = Math.round(
+          image.naturalWidth * scale
+        );
 
-    return {
+        side.canvas.height = Math.round(
+          image.naturalHeight * scale
+        );
 
-        red,
-        green,
-        blue,
-        brightness,
-        edgeAmount
+        side.image = image;
 
+        side.cursor = {
+          x: side.canvas.width / 2,
+          y: side.canvas.height / 2
+        };
+
+        side.canvas.hidden = false;
+
+        card.querySelector(".placeholder").hidden = true;
+
+        side.select.selectedIndex = 0;
+        side.mode = "직접 지정";
+
+        side.note.textContent =
+          "사진 준비 완료. 자동 감지 또는 직접 지정을 선택하세요.";
+
+        draw(side);
+      } catch (error) {
+        if (version === side.version) {
+          side.note.textContent = error.message;
+        }
+      } finally {
+        if (url) {
+          URL.revokeObjectURL(url);
+        }
+
+        card.querySelectorAll(
+          ".detect, .manual"
+        ).forEach((button) => {
+          button.disabled = busy || !side.image;
+        });
+
+        update();
+      }
+    }
+  );
+
+  /* 자동 감지 버튼 */
+  card.querySelector(".detect").addEventListener(
+    "click",
+    () => detect(side)
+  );
+
+  /* 직접 지정 / 수정 버튼 */
+  card.querySelector(".manual").addEventListener(
+    "click",
+    () => edit(side)
+  );
+
+  /* 기준점 목록 선택 */
+  side.select.addEventListener("change", () => {
+    const key = POINTS[side.select.selectedIndex][0];
+
+    side.cursor = side.points[key] || {
+      x: side.canvas.width / 2,
+      y: side.canvas.height / 2
     };
 
-}
+    draw(side);
+  });
 
+  /* 마우스 / 터치로 기준점 지정 */
+  side.canvas.addEventListener("pointerdown", (event) => {
+    const rect = side.canvas.getBoundingClientRect();
+
+    const x =
+      (event.clientX - rect.left) /
+      rect.width *
+      side.canvas.width;
+
+    const y =
+      (event.clientY - rect.top) /
+      rect.height *
+      side.canvas.height;
+
+    place(side, x, y);
+  });
+
+  /* 키보드로 기준점 지정 */
+  side.canvas.addEventListener("keydown", (event) => {
+    if (!side.editing || busy) return;
+
+    const step = event.shiftKey ? 10 : 1;
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+
+      place(
+        side,
+        side.cursor.x,
+        side.cursor.y
+      );
+
+      return;
+    }
+
+    const directions = {
+      ArrowLeft: [-step, 0],
+      ArrowRight: [step, 0],
+      ArrowUp: [0, -step],
+      ArrowDown: [0, step]
+    };
+
+    const direction = directions[event.key];
+
+    if (direction) {
+      event.preventDefault();
+
+      side.cursor = {
+        x: Math.max(
+          0,
+          Math.min(
+            side.canvas.width,
+            side.cursor.x + direction[0]
+          )
+        ),
+
+        y: Math.max(
+          0,
+          Math.min(
+            side.canvas.height,
+            side.cursor.y + direction[1]
+          )
+        )
+      };
+
+      draw(side);
+    }
+  });
+
+  /* 기준점 확인 완료 */
+  card.querySelector(".confirm").addEventListener(
+    "click",
+    () => {
+      try {
+        features(side.points);
+
+        side.ready = true;
+        side.editing = false;
+        side.editor.hidden = true;
+
+        side.note.textContent =
+          `${side.mode} · 기준점 확인 완료`;
+
+        draw(side);
+        update();
+
+        $("#status").textContent =
+          sides.every((item) => item.ready)
+            ? "두 사진이 준비되었습니다. 비교를 시작하세요."
+            : "다른 사진도 기준점을 확인해 주세요.";
+      } catch (error) {
+        side.note.textContent = error.message;
+      }
+    }
+  );
+}
 
 /* =========================
    점수 계산
 ========================= */
 
-function clampScore(value) {
+function compare(first, second) {
+  const scores = METRICS.map((metric, index) => {
+    const difference = first[index] - second[index];
+    const tolerance = metric[2];
 
-    return Math.max(
-        0,
-        Math.min(
-            100,
-            value
-        )
+    return 100 * Math.exp(
+      -Math.LN2 * (difference / tolerance) ** 2
     );
+  });
 
+  /*
+    [파트 이름, 포함 그룹, 전체 점수 가중치]
+    FACE STRUCTURE와 BALANCE는 하나로 묶습니다.
+  */
+  const definitions = [
+    ["눈", [1], 0.25],
+    ["코", [2], 0.15],
+    ["입", [3], 0.15],
+    ["얼굴 윤곽", [4], 0.20],
+    ["구조·균형", [0, 5], 0.25]
+  ];
+
+  const parts = definitions.map(
+    ([label, groups, weight]) => {
+      const values = scores.filter((_, index) => {
+        return groups.includes(METRICS[index][0]);
+      });
+
+      return {
+        label,
+        weight,
+        score: mean(values)
+      };
+    }
+  );
+
+  const total = Math.round(
+    parts.reduce((sum, part) => {
+      return sum + part.score * part.weight;
+    }, 0)
+  );
+
+  return {
+    scores,
+    parts,
+    total
+  };
 }
 
+/* =========================
+   결과 화면 표시
+========================= */
 
-function calculateSimilarity(
-    first,
-    second
-) {
+function render(first, second, result) {
+  $("#totalScore").textContent = result.total;
 
-    /* 색상 차이 */
+  $(".score-circle").style.setProperty(
+    "--score",
+    result.total
+  );
 
-    const colorDifference =
-        (
-            Math.abs(
-                first.red -
-                second.red
-            )
-            +
-            Math.abs(
-                first.green -
-                second.green
-            )
-            +
-            Math.abs(
-                first.blue -
-                second.blue
-            )
-        ) / 3;
+  $("#grade").textContent =
+    result.total >= 95 ? "PERFECT SYNC" :
+    result.total >= 85 ? "VERY HIGH" :
+    result.total >= 70 ? "HIGH" :
+    result.total >= 55 ? "MEDIUM" :
+    "LOW";
 
+  $("#method").textContent =
+    `캐릭터: ${sides[0].mode} · ` +
+    `내 사진: ${sides[1].mode} | 22개 2D 비율 비교`;
 
-    const colorScore =
-        clampScore(
-            100 -
-            colorDifference / 2
-        );
+  /* 가장 닮은 / 차이가 가장 큰 특징 */
+  const max = Math.max(...result.scores);
+  const min = Math.min(...result.scores);
 
+  function highlight(value, title) {
+    const indexes = result.scores
+      .map((score, index) => {
+        return Math.abs(score - value) < 1e-9
+          ? index
+          : -1;
+      })
+      .filter((index) => index >= 0);
 
-    /* 밝기 차이 */
+    const tieText = indexes.length > 1
+      ? ` · 공동 ${indexes.length}개`
+      : "";
 
-    const brightnessDifference =
-        Math.abs(
-            first.brightness -
-            second.brightness
-        );
+    const moreText = indexes.length > 1
+      ? ` 외 ${indexes.length - 1}개`
+      : "";
 
+    return `
+      <article class="highlight">
+        <p>${title}${tieText}</p>
 
-    const brightnessScore =
-        clampScore(
-            100 -
-            brightnessDifference / 1.5
-        );
+        <strong>
+          ${METRICS[indexes[0]][1]}${moreText}
+          <span>${Math.round(value)}%</span>
+        </strong>
+      </article>
+    `;
+  }
 
+  $("#highlights").innerHTML =
+    highlight(max, "가장 닮은 특징") +
+    highlight(min, "차이가 가장 큰 특징");
 
-    /* 윤곽/형태 차이 */
+  /* 5개 파트 종합 */
+  $("#parts").innerHTML = result.parts
+    .map((part) => {
+      return `
+        <div class="part">
+          ${part.label}
+          <strong>${Math.round(part.score)}%</strong>
+        </div>
+      `;
+    })
+    .join("");
 
-    const edgeDifference =
-        Math.abs(
-            first.edgeAmount -
-            second.edgeAmount
-        );
+  /* 6개 그룹 및 22개 항목 */
+  $("#details").innerHTML = GROUPS
+    .map((group, groupIndex) => {
+      const rows = METRICS
+        .map((metric, index) => {
+          if (metric[0] !== groupIndex) {
+            return "";
+          }
 
+          const score = result.scores[index];
 
-    const shapeScore =
-        clampScore(
-            100 -
-            edgeDifference * 3
-        );
+          return `
+            <div class="metric-wrap">
+              <details class="metric">
+                <summary>
+                  <span>${metric[1]}</span>
+                  <strong>${Math.round(score)}%</strong>
+                </summary>
 
+                <p>
+                  ${metric[3]}
+                  <br>
+                  캐릭터 ${first[index].toFixed(3)}
+                  /
+                  내 사진 ${second[index].toFixed(3)}
+                  <br>
+                  50점이 되는 차이: ${metric[2]}
+                </p>
+              </details>
 
-    /*
-       최종 점수
+              <div class="bar" aria-hidden="true">
+                <i style="width: ${score}%"></i>
+              </div>
+            </div>
+          `;
+        })
+        .join("");
 
-       색상 30%
-       밝기 20%
-       형태 50%
-    */
+      return `
+        <section class="group">
+          <h4>${group}</h4>
+          ${rows}
+        </section>
+      `;
+    })
+    .join("");
 
-    const total =
-        colorScore * 0.30
-        +
-        brightnessScore * 0.20
-        +
-        shapeScore * 0.50;
+  $("#result").hidden = false;
+  $("#result").focus();
 
-
-    return {
-
-        color:
-            Math.round(colorScore),
-
-        brightness:
-            Math.round(
-                brightnessScore
-            ),
-
-        shape:
-            Math.round(shapeScore),
-
-        total:
-            Math.round(total)
-
-    };
-
+  $("#result").scrollIntoView({
+    behavior: "smooth",
+    block: "start"
+  });
 }
-
 
 /* =========================
    분석 시작
 ========================= */
 
-async function analyzeImages() {
+$("#analyzeButton").addEventListener("click", () => {
+  if (
+    busy ||
+    !sides.every((side) => side.ready)
+  ) {
+    return;
+  }
 
-    if (
-        !characterLoaded ||
-        !userLoaded
-    ) {
+  try {
+    const first = features(sides[0].points);
+    const second = features(sides[1].points);
 
-        alert(
-            "캐릭터 이미지와 내 이미지를 모두 선택해주세요!"
-        );
+    const result = compare(first, second);
 
-        return;
+    render(first, second, result);
 
-    }
-
-
-    const loading =
-        document.getElementById(
-            "loading"
-        );
-
-    const result =
-        document.getElementById(
-            "result"
-        );
-
-
-    result.classList.add(
-        "hidden"
-    );
-
-    loading.classList.remove(
-        "hidden"
-    );
-
-
-    const progress =
-        document.getElementById(
-            "loadingProgress"
-        );
-
-    const loadingText =
-        document.getElementById(
-            "loadingText"
-        );
-
-
-    progress.style.width =
-        "25%";
-
-    loadingText.textContent =
-        "이미지를 불러오는 중...";
-
-
-    await wait(500);
-
-
-    progress.style.width =
-        "50%";
-
-    loadingText.textContent =
-        "색상과 밝기를 분석하는 중...";
-
-
-    await wait(500);
-
-
-    const canvas1 =
-        document.getElementById(
-            "canvas1"
-        );
-
-    const canvas2 =
-        document.getElementById(
-            "canvas2"
-        );
-
-
-    const features1 =
-        getImageFeatures(
-            characterPreview,
-            canvas1
-        );
-
-    const features2 =
-        getImageFeatures(
-            userPreview,
-            canvas2
-        );
-
-
-    progress.style.width =
-        "75%";
-
-    loadingText.textContent =
-        "이미지 형태를 비교하는 중...";
-
-
-    await wait(500);
-
-
-    const scores =
-        calculateSimilarity(
-            features1,
-            features2
-        );
-
-
-    progress.style.width =
-        "100%";
-
-    loadingText.textContent =
-        "싱크로율 계산 완료!";
-
-
-    await wait(500);
-
-
-    loading.classList.add(
-        "hidden"
-    );
-
-
-    showResult(scores);
-
-}
-
+    $("#status").textContent =
+      "분석 완료 · 기준점을 수정하면 다시 비교할 수 있습니다.";
+  } catch (error) {
+    $("#status").textContent = error.message;
+  }
+});
 
 /* =========================
-   결과 출력
+   사진 지우고 다시하기
 ========================= */
 
-function showResult(scores) {
+$("#resetButton").addEventListener("click", () => {
+  sides.forEach((side) => {
+    side.version++;
 
-    const result =
-        document.getElementById(
-            "result"
-        );
+    side.image = null;
+    side.points = {};
 
+    side.ready = false;
+    side.editing = false;
 
-    result.classList.remove(
-        "hidden"
-    );
+    side.canvas.hidden = true;
+    side.editor.hidden = true;
 
+    side.card.querySelector("input").value = "";
 
-    animateNumber(
-        "score",
-        scores.total
-    );
+    side.card.querySelector(".placeholder").hidden = false;
 
-
-    document.getElementById(
-        "colorScore"
-    ).textContent =
-        scores.color + "%";
-
-
-    document.getElementById(
-        "brightnessScore"
-    ).textContent =
-        scores.brightness + "%";
-
-
-    document.getElementById(
-        "shapeScore"
-    ).textContent =
-        scores.shape + "%";
-
-
-    setTimeout(
-        function() {
-
-            document.getElementById(
-                "colorBar"
-            ).style.width =
-                scores.color + "%";
-
-
-            document.getElementById(
-                "brightnessBar"
-            ).style.width =
-                scores.brightness + "%";
-
-
-            document.getElementById(
-                "shapeBar"
-            ).style.width =
-                scores.shape + "%";
-
-        },
-        100
-    );
-
-
-    const title =
-        document.getElementById(
-            "resultTitle"
-        );
-
-    const description =
-        document.getElementById(
-            "resultDescription"
-        );
-
-
-    if (scores.total >= 90) {
-
-        title.textContent =
-            "놀라운 싱크로율!";
-
-        description.textContent =
-            "두 이미지의 시각적 특징이 매우 비슷하게 나타났습니다.";
-
-    }
-
-    else if (
-        scores.total >= 75
-    ) {
-
-        title.textContent =
-            "상당히 닮았어요!";
-
-        description.textContent =
-            "색상과 형태에서 여러 비슷한 특징이 발견되었습니다.";
-
-    }
-
-    else if (
-        scores.total >= 55
-    ) {
-
-        title.textContent =
-            "어딘가 닮은 느낌?";
-
-        description.textContent =
-            "일부 시각적 특징에서 유사한 부분이 발견되었습니다.";
-
-    }
-
-    else {
-
-        title.textContent =
-            "서로 다른 매력이네요!";
-
-        description.textContent =
-            "두 이미지의 시각적 특징에는 비교적 큰 차이가 있습니다.";
-
-    }
-
-
-    result.scrollIntoView({
-        behavior: "smooth"
+    side.card.querySelectorAll("button").forEach((button) => {
+      button.disabled = true;
     });
 
-}
+    side.note.textContent =
+      "JPG · PNG · WEBP / 최대 15MB";
+  });
 
+  invalidate();
 
-/* 숫자 올라가는 효과 */
+  $("#status").textContent =
+    "두 사진을 선택해 주세요.";
 
-function animateNumber(
-    elementId,
-    target
-) {
+  $("#characterInput").focus();
 
-    const element =
-        document.getElementById(
-            elementId
-        );
-
-
-    let current = 0;
-
-
-    const timer =
-        setInterval(
-            function() {
-
-                current++;
-
-                element.textContent =
-                    current;
-
-
-                if (
-                    current >= target
-                ) {
-
-                    clearInterval(
-                        timer
-                    );
-
-                }
-
-            },
-            15
-        );
-
-}
-
-
-/* 잠시 기다리는 함수 */
-
-function wait(ms) {
-
-    return new Promise(
-        resolve =>
-            setTimeout(
-                resolve,
-                ms
-            )
-    );
-
-}
-
-
-/* =========================
-   초기화
-========================= */
-
-function resetApp() {
-
-    characterInput.value = "";
-    userInput.value = "";
-
-
-    characterPreview.src = "";
-    userPreview.src = "";
-
-
-    characterPreview.style.display =
-        "none";
-
-    userPreview.style.display =
-        "none";
-
-
-    document.getElementById(
-        "characterMessage"
-    ).style.display =
-        "block";
-
-    document.getElementById(
-        "userMessage"
-    ).style.display =
-        "block";
-
-
-    document.getElementById(
-        "result"
-    ).classList.add(
-        "hidden"
-    );
-
-
-    document.getElementById(
-        "colorBar"
-    ).style.width =
-        "0";
-
-    document.getElementById(
-        "brightnessBar"
-    ).style.width =
-        "0";
-
-    document.getElementById(
-        "shapeBar"
-    ).style.width =
-        "0";
-
-
-    characterLoaded = false;
-    userLoaded = false;
-
-
-    window.scrollTo({
-        top: 0,
-        behavior: "smooth"
-    });
-
-}
-
-
-/* 버튼 이벤트 */
-
-analyzeButton.addEventListener(
-    "click",
-    analyzeImages
-);
-
-
-resetButton.addEventListener(
-    "click",
-    resetApp
-);
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth"
+  });
+});
