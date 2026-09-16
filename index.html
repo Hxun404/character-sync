@@ -1,200 +1,266 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#090d1d">
 
-    <title>Character Sync</title>
+  <title>CHARACTER SYNC — 얼굴 비교 리포트</title>
 
-    <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
 </head>
 
 <body>
+  <main class="container">
 
-<div class="background-glow glow1"></div>
-<div class="background-glow glow2"></div>
-
-<main class="container">
-
+    <!-- 상단 제목 -->
     <header>
-        <p class="mini-title">IMAGE SIMILARITY ANALYZER</p>
-        <h1>CHARACTER <span>SYNC</span></h1>
-        <p class="description">
-            캐릭터와 당신은 얼마나 닮았을까요?
-            두 이미지를 업로드하고 싱크로율을 확인해보세요.
-        </p>
+      <p class="eyebrow">FIND YOUR CHARACTER CONNECTION</p>
+
+      <h1>CHARACTER <span>SYNC</span></h1>
+
+      <p class="description">
+        캐릭터와 나, 얼마나 닮았을까?
+        <br>
+        22개의 얼굴 비율로 살펴보는 우리 사이의 연결.
+      </p>
     </header>
 
+    <!-- 사진 선택 및 기준점 편집 -->
+    <section class="compare-area" aria-label="비교할 사진 선택">
 
-    <!-- 이미지 업로드 -->
-    <section class="compare-area">
+      <!-- 캐릭터 사진 -->
+      <article class="upload-card" data-side="character">
+        <h2><span>01</span> CHARACTER</h2>
 
-        <!-- 캐릭터 -->
-        <div class="upload-card">
+        <label class="upload-label">
+          캐릭터 이미지 선택
+          <input
+            id="characterInput"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+          >
+        </label>
 
-            <div class="card-title">
-                <span>01</span>
-                CHARACTER
-            </div>
+        <div class="image-box">
+          <p class="placeholder">
+            캐릭터의 정면 사진을 선택하세요
+          </p>
 
-            <label class="image-box" for="characterInput">
-
-                <img id="characterPreview" alt="캐릭터 미리보기">
-
-                <div class="upload-message" id="characterMessage">
-                    <div class="upload-icon">+</div>
-                    <strong>캐릭터 이미지</strong>
-                    <p>클릭하여 이미지 선택</p>
-                </div>
-
-            </label>
-
-            <input
-                type="file"
-                id="characterInput"
-                accept="image/*"
-                hidden
-            >
-
+          <canvas
+            id="characterCanvas"
+            hidden
+            tabindex="0"
+            aria-label="캐릭터 기준점 편집. 방향키로 이동, Enter로 배치"
+          ></canvas>
         </div>
 
+        <p class="card-status" aria-live="polite">
+          JPG · PNG · WEBP / 최대 15MB
+        </p>
 
-        <div class="vs">VS</div>
+        <div class="controls">
+          <button class="detect" disabled>
+            자동 감지
+          </button>
 
-
-        <!-- 사용자 -->
-        <div class="upload-card">
-
-            <div class="card-title">
-                <span>02</span>
-                YOU
-            </div>
-
-            <label class="image-box" for="userInput">
-
-                <img id="userPreview" alt="사용자 미리보기">
-
-                <div class="upload-message" id="userMessage">
-                    <div class="upload-icon">+</div>
-                    <strong>내 이미지</strong>
-                    <p>클릭하여 이미지 선택</p>
-                </div>
-
-            </label>
-
-            <input
-                type="file"
-                id="userInput"
-                accept="image/*"
-                hidden
-            >
-
+          <button class="manual" disabled>
+            직접 지정 / 수정
+          </button>
         </div>
 
+        <div class="editor" hidden>
+          <label>
+            기준점
+            <select aria-label="캐릭터 기준점"></select>
+          </label>
+
+          <p class="hint">
+            화면 기준 왼쪽/오른쪽입니다.
+            위치를 누르면 다음 점으로 이동합니다.
+            키보드: 방향키, Enter. Shift로 크게 이동.
+          </p>
+
+          <button class="confirm">
+            기준점 확인 완료
+          </button>
+        </div>
+      </article>
+
+      <div class="vs" aria-hidden="true">VS</div>
+
+      <!-- 내 사진 -->
+      <article class="upload-card" data-side="user">
+        <h2><span>02</span> YOU</h2>
+
+        <label class="upload-label">
+          내 이미지 선택
+          <input
+            id="userInput"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+          >
+        </label>
+
+        <div class="image-box">
+          <p class="placeholder">
+            한 명이 나온 정면 사진을 선택하세요
+          </p>
+
+          <canvas
+            id="userCanvas"
+            hidden
+            tabindex="0"
+            aria-label="내 사진 기준점 편집. 방향키로 이동, Enter로 배치"
+          ></canvas>
+        </div>
+
+        <p class="card-status" aria-live="polite">
+          JPG · PNG · WEBP / 최대 15MB
+        </p>
+
+        <div class="controls">
+          <button class="detect" disabled>
+            자동 감지
+          </button>
+
+          <button class="manual" disabled>
+            직접 지정 / 수정
+          </button>
+        </div>
+
+        <div class="editor" hidden>
+          <label>
+            기준점
+            <select aria-label="내 사진 기준점"></select>
+          </label>
+
+          <p class="hint">
+            화면 기준 왼쪽/오른쪽입니다.
+            위치를 누르면 다음 점으로 이동합니다.
+            키보드: 방향키, Enter. Shift로 크게 이동.
+          </p>
+
+          <button class="confirm">
+            기준점 확인 완료
+          </button>
+        </div>
+      </article>
     </section>
 
+    <!-- 분석 시작 -->
+    <p class="guidance">
+      사진 선택 → 자동 감지 또는 직접 지정 →
+      두 사진의 기준점 확인 → 비교
+    </p>
 
-    <!-- 분석 버튼 -->
-    <button id="analyzeButton" class="analyze-button">
-        ANALYZE SYNC
+    <button
+      id="analyzeButton"
+      class="analyze-button"
+      disabled
+    >
+      ANALYZE SYNC
     </button>
 
+    <p id="status" role="status" aria-live="polite">
+      두 사진을 선택해 주세요.
+    </p>
 
-    <!-- 분석 중 -->
-    <section id="loading" class="loading hidden">
+    <!-- 분석 결과 -->
+    <section
+      id="result"
+      class="result"
+      hidden
+      aria-labelledby="resultTitle"
+      tabindex="-1"
+    >
+      <p class="eyebrow">ANALYSIS COMPLETE</p>
 
-        <div class="scanner"></div>
+      <h2 id="resultTitle">우리의 싱크로율</h2>
 
-        <h2>ANALYZING...</h2>
+      <!-- 전체 점수 -->
+      <div class="score-circle">
+        <div>
+          <strong id="totalScore">0</strong>
+          <small>%</small>
+        </div>
+      </div>
 
-        <p id="loadingText">
-            이미지 데이터를 불러오는 중
+      <p id="grade" class="grade"></p>
+      <p id="method" class="description"></p>
+
+      <!-- 가장 닮은 특징 / 차이가 가장 큰 특징 -->
+      <div id="highlights" class="highlights"></div>
+
+      <!-- 5개 파트 종합 점수 -->
+      <h3 class="section-title">
+        PART SUMMARY
+        <small>5개 파트 종합</small>
+      </h3>
+
+      <div id="parts" class="parts"></div>
+
+      <!--
+        JavaScript에서 생성하는 6개 결과 그룹:
+        FACE STRUCTURE
+        EYES
+        NOSE
+        MOUTH
+        FACE SHAPE
+        BALANCE
+      -->
+      <h3 class="section-title">
+        DETAILED REPORT
+        <small>6개 그룹 · 22개 세부 항목</small>
+      </h3>
+
+      <div id="details" class="details"></div>
+
+      <!-- 계산 방식 안내 -->
+      <details class="method-note">
+        <summary>점수는 어떻게 계산하나요?</summary>
+
+        <p>
+          사진 크기와 기울기를 보정한 2D 기준점의
+          거리·위치를 비교합니다.
+          세부 점수는
+          100 × exp(−ln(2) ×
+          (두 측정값의 차이 ÷ 항목별 허용 차이)²)입니다.
+          측정값과 허용 차이는 각 항목을 펼쳐 확인할 수 있습니다.
         </p>
 
-        <div class="loading-bar">
-            <div id="loadingProgress"></div>
-        </div>
+        <p>
+          전체 점수:
+          눈 25% + 코 15% + 입 15% +
+          윤곽 20% + 구조·균형 25%.
+          각 파트 안에서는 세부 항목을 동일 비중으로 평균합니다.
+          얼굴 구조와 균형은 하나의 파트로 묶습니다.
+        </p>
 
+        <p>
+          이 수치는 검증된 얼굴 인식 확률이 아닌
+          재미용 구조 유사도입니다.
+          인물의 신원이나 매력을 평가하지 않습니다.
+          표정·각도·가림·캐릭터의 과장된 표현과
+          기준점 위치에 따라 달라집니다.
+          색상과 배경은 점수에 사용하지 않습니다.
+        </p>
+      </details>
+
+      <button id="resetButton" class="reset-button">
+        사진 지우고 다시하기
+      </button>
     </section>
 
+    <footer>
+      사진 분석은 브라우저 안에서 진행되며
+      이 앱은 사진을 전송하거나 저장하지 않습니다.
+      <br>
+      자동 감지는 최초 실행 시 외부 모델을 다운로드합니다.
+      직접 지정은 모델 없이 사용할 수 있습니다.
+    </footer>
 
-    <!-- 결과 -->
-    <section id="result" class="result hidden">
-
-        <p class="result-small">
-            CHARACTER SYNC RESULT
-        </p>
-
-        <div class="score-circle">
-
-            <span id="score">0</span>
-            <small>%</small>
-
-        </div>
-
-        <h2 id="resultTitle">
-            분석 완료
-        </h2>
-
-        <p id="resultDescription">
-            두 이미지의 시각적 특징을 비교했습니다.
-        </p>
-
-
-        <!-- 세부 분석 -->
-        <div class="details">
-
-            <div class="detail">
-                <div class="detail-name">
-                    <span>색상 유사도</span>
-                    <span id="colorScore">0%</span>
-                </div>
-
-                <div class="detail-bar">
-                    <div id="colorBar"></div>
-                </div>
-            </div>
-
-
-            <div class="detail">
-                <div class="detail-name">
-                    <span>밝기 유사도</span>
-                    <span id="brightnessScore">0%</span>
-                </div>
-
-                <div class="detail-bar">
-                    <div id="brightnessBar"></div>
-                </div>
-            </div>
-
-
-            <div class="detail">
-                <div class="detail-name">
-                    <span>형태 유사도</span>
-                    <span id="shapeScore">0%</span>
-                </div>
-
-                <div class="detail-bar">
-                    <div id="shapeBar"></div>
-                </div>
-            </div>
-
-        </div>
-
-
-        <button id="resetButton" class="reset-button">
-            다시 비교하기
-        </button>
-
-    </section>
-
-
-    <canvas id="canvas1" width="64" height="64"></canvas>
-    <canvas id="canvas2" width="64" height="64"></canvas>
-
-</main>
-
-<script src="script.js"></script>
-
+  </main>
 </body>
 </html>
